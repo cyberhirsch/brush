@@ -1108,6 +1108,7 @@ version = "1.0.0"
 dependencies = [
  "brush-process",
  "brush-render",
+ "brush-serde",
  "burn",
  "console_error_panic_hook",
  "getrandom 0.3.4",
