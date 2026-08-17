@@ -4,7 +4,9 @@
 
 use brush_process::message::{ProcessMessage, TrainMessage};
 use brush_process::slot::Slot;
-use brush_process::{DataSource, ProcessStream, burn_init_device, burn_init_setup, create_process};
+use brush_process::{
+    DataSource, ProcessStream, SourceBytes, burn_init_device, burn_init_setup, create_process,
+};
 use brush_render::gaussian_splats::Splats;
 use serde::Serialize;
 use std::pin::Pin;
@@ -294,8 +296,31 @@ impl BrushApp {
     ) -> Training {
         let display_name = handle.name();
         let dir = rrfd::wasm::DirectoryHandle::from_handle(handle);
-        let source = DataSource::PickedDirectory(dir, display_name);
+        Self::start_from_source(DataSource::PickedDirectory(dir, display_name), config_fn)
+    }
 
+    /// Start training from in-memory bytes: a zip archive of a dataset, or
+    /// any single supported file. Same contract as
+    /// [`Self::start_training_from_directory`], but the host hands over the
+    /// data directly rather than a directory handle — no picker involved.
+    #[wasm_bindgen(js_name = startTrainingFromBytes)]
+    pub fn start_training_from_bytes(
+        &self,
+        bytes: Vec<u8>,
+        name: Option<String>,
+        config_fn: js_sys::Function,
+    ) -> Training {
+        Self::start_from_source(DataSource::Bytes(SourceBytes { data: bytes, name }), config_fn)
+    }
+
+    /// Start training from a URL (streamed fetch; zip or single file). Same
+    /// contract as [`Self::start_training_from_directory`].
+    #[wasm_bindgen(js_name = startTrainingFromUrl)]
+    pub fn start_training_from_url(&self, url: String, config_fn: js_sys::Function) -> Training {
+        Self::start_from_source(DataSource::Url(url), config_fn)
+    }
+
+    fn start_from_source(source: DataSource, config_fn: js_sys::Function) -> Training {
         let process = create_process(source, async move |init| {
             bridge_config_callback(config_fn, init).await
         });
@@ -363,6 +388,21 @@ impl Training {
     #[wasm_bindgen(js_name = currentSplats)]
     pub fn current_splats(&self) -> Option<BrushSplats> {
         self.splat_view.latest().map(|inner| BrushSplats { inner })
+    }
+
+    /// Serialize the current splats to a standard 3DGS binary PLY and return
+    /// the bytes. Rejects if no splats have been produced yet. Performs an
+    /// async GPU readback, so call it between [`Self::train_steps`] pumps.
+    #[wasm_bindgen(js_name = exportPly)]
+    pub async fn export_ply(&self) -> Result<js_sys::Uint8Array, JsValue> {
+        let splats = self
+            .splat_view
+            .latest()
+            .ok_or_else(|| js_err_str("no splats to export yet"))?;
+        let bytes = brush_serde::splat_to_ply(splats, None)
+            .await
+            .map_err(|e| js_err_str(&format!("{e:#}")))?;
+        Ok(js_sys::Uint8Array::from(&bytes[..]))
     }
 }
 
