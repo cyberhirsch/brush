@@ -4,7 +4,7 @@ pub mod message;
 pub mod slot;
 pub mod train_stream;
 
-pub use brush_vfs::DataSource;
+pub use brush_vfs::{DataSource, SourceBytes};
 
 use burn_wgpu::{
     AutoCompiler, RuntimeOptions, WgpuDevice,

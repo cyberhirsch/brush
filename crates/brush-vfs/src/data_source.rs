@@ -8,6 +8,20 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::io::BufReader;
 
+/// In-memory payload for [`DataSource::Bytes`]. Custom `Debug` so logging a
+/// source prints the length rather than the contents.
+#[derive(Clone)]
+pub struct SourceBytes {
+    pub data: Vec<u8>,
+    pub name: Option<String>,
+}
+
+impl fmt::Debug for SourceBytes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SourceBytes({} bytes, {:?})", self.data.len(), self.name)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub enum DataSource {
     PickFile,
@@ -20,6 +34,11 @@ pub enum DataSource {
     #[cfg(target_family = "wasm")]
     #[serde(skip)]
     PickedDirectory(rrfd::wasm::DirectoryHandle, String),
+    /// In-memory bytes: a zip archive or any single supported file, handed
+    /// over by a host application. Constructed programmatically — never
+    /// (de)serialised from CLI args or saved state.
+    #[serde(skip)]
+    Bytes(SourceBytes),
 }
 
 // Implement FromStr to allow Clap to parse string arguments into DataSource
@@ -46,6 +65,7 @@ impl fmt::Display for DataSource {
             Self::Path(_) => write!(f, "Path"),
             #[cfg(target_family = "wasm")]
             Self::PickedDirectory(_, name) => write!(f, "{name}"),
+            Self::Bytes(bytes) => write!(f, "{}", bytes.name.as_deref().unwrap_or("bytes")),
         }
     }
 }
@@ -99,6 +119,10 @@ impl DataSource {
             #[cfg(target_family = "wasm")]
             Self::PickedDirectory(handle, _) => {
                 Ok(Arc::new(BrushVfs::from_directory_handle(handle).await?))
+            }
+            Self::Bytes(bytes) => {
+                let reader = BufReader::new(std::io::Cursor::new(bytes.data));
+                Ok(Arc::new(BrushVfs::from_reader(reader, bytes.name).await?))
             }
         }
     }

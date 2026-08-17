@@ -17,7 +17,7 @@ use tokio::{
 };
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 
-pub use data_source::{DataSource, DataSourceError};
+pub use data_source::{DataSource, DataSourceError, SourceBytes};
 
 // WASM doesn't require Send, but native tokio does.
 #[cfg(target_family = "wasm")]
