@@ -42,6 +42,14 @@ workspace = true
 [package.metadata.wasm-pack.profile.dev.wasm-bindgen]
 dwarf-debug-info = true
 
+[package.metadata.wasm-pack.profile.profiling]
+# keep the name section so a panic's stack names Rust functions
+wasm-opt = ["-O", "-g"]
+
+[package.metadata.wasm-pack.profile.profiling.wasm-bindgen]
+debug-js-glue = false
+demangle-name-section = true
+
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = [
     "-Oz",
