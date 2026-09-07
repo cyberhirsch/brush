@@ -322,7 +322,7 @@ pub(crate) async fn train_stream(
             && phase_iter.is_multiple_of(train_stream_config.train_config.refine_every)
             && phase_progress <= 0.95
         {
-            let (new_splats, refine_stats) = trainer.refine(iter, splats).await;
+            let (new_splats, refine_stats) = trainer.refine(iter, splats, wgpu_device).await;
             splats = new_splats;
             refine_stats
         } else {

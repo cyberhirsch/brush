@@ -428,7 +428,12 @@ impl SplatTrainer {
         (splats, stats)
     }
 
-    pub async fn refine(&mut self, iter: u32, splats: Splats) -> (Splats, RefineStats) {
+    pub async fn refine(
+        &mut self,
+        iter: u32,
+        splats: Splats,
+        wgpu_device: &WgpuDevice,
+    ) -> (Splats, RefineStats) {
         let progress = iter as f32 / self.config.total_train_iters.max(1) as f32;
         // Refine manipulates the canonical (un-floored) params, so bake the
         // current 3D-filter floor into them first — split/clone/prune then see
@@ -436,8 +441,15 @@ impl SplatTrainer {
         // floor is attached at the end (below), once positions/count are known.
         let splats = splats.bake_min_scale();
         let device = splats.device();
-        // `memory_cleanup` lives on the wgpu client, not on `Device`.
-        let client = WgpuRuntime::<AutoCompiler>::client(&WgpuDevice::default());
+        // `memory_cleanup` lives on the wgpu client, not on `Device`, and the
+        // client has to come from the device the splats are actually on.
+        // `WgpuDevice::default()` was only ever right because desktop brush
+        // runs on the default device; on the web the device is one handed in
+        // through `initExisting`, nothing is registered against the default,
+        // and the lookup panicked with "Service WgpuServer<...> not
+        // initialized" at the first refine - a crash the native path can
+        // never reach, since there the default resolves to the same device.
+        let client = WgpuRuntime::<AutoCompiler>::client(wgpu_device);
 
         let refiner = self
             .refine_record
